@@ -14,9 +14,7 @@ Esta aplicación ha sido diseñada para ser ligera, rápida y proporcionar una v
 *   **💾 Memoria RAM**: Uso detallado en Gigabytes con historial gráfico de ocupación.
 *   **📶 Conectividad y Red**: Medición de latencia de red, velocidad de subida/bajada actual y estado de la red local.
 *   **📁 Almacenamiento y Diagnóstico S.M.A.R.T.**: Estado de vida útil de tus unidades de almacenamiento (SSD, NVMe, HDD), temperatura de los discos, espacio ocupado/libre y datos S.M.A.R.T. detallados.
-*   **⚙️ Control de Procesos Activos**: Búsqueda e inspección de procesos del sistema remoto con su respectivo consumo de CPU y memoria.
-*   **📜 Ejecución de Scripts**: Lanzamiento de comandos y scripts automatizados de forma remota en tu computadora.
-*   **🖥️ Mirroring de Pantalla**: Transmisión rápida de la pantalla de tu PC a la app móvil por WebSocket para un control visual rápido.
+
 
 ---
 
