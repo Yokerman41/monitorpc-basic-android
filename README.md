@@ -1,9 +1,4 @@
 # MonitorPC Basic 📱💻
-
-<div align="center">
-  <img src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" width="100%" alt="MonitorPC Banner" style="border-radius: 8px;" />
-</div>
-
 ---
 
 **MonitorPC Basic** es una aplicación móvil minimalista e intuitiva para Android que te permite monitorear las métricas de rendimiento y hardware de tu computadora en tiempo real desde tu dispositivo móvil. 
