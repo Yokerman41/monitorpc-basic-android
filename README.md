@@ -11,8 +11,10 @@ Esta aplicación ha sido diseñada para ser ligera, rápida y proporcionar una v
 ## 📸 Screenshots
 
 <div align="center">
-  <img src="screenshots/dashboard.png" width="30%" alt="Dashboard Screen" />
-  <img src="screenshots/greeting.png" width="30%" alt="Greeting Screen" />
+  <img src="screenshots/login.png" width="24%" alt="Login Screen" />
+  <img src="screenshots/dashboard.png" width="24%" alt="Dashboard Screen" />
+  <img src="screenshots/storage.png" width="24%" alt="Storage Screen" />
+  <img src="screenshots/settings.png" width="24%" alt="Settings Screen" />
 </div>
 
 ---
