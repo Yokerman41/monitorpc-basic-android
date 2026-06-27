@@ -34,7 +34,7 @@ class FullAppScreenshotsTest {
                 LoginScreen(viewModel = viewModel)
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "screenshots/login.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/login.png")
     }
 
     @Test
@@ -44,7 +44,7 @@ class FullAppScreenshotsTest {
                 DashboardScreen(viewModel = viewModel)
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "screenshots/dashboard_full.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/dashboard_full.png")
     }
 
     @Test
@@ -54,7 +54,7 @@ class FullAppScreenshotsTest {
                 StorageScreen(viewModel = viewModel)
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "screenshots/storage.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/storage.png")
     }
 
     @Test
@@ -64,6 +64,6 @@ class FullAppScreenshotsTest {
                 SettingsScreen(viewModel = viewModel)
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "screenshots/settings.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/settings.png")
     }
 }
