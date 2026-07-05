@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -34,18 +37,11 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.StorageScreen
 import com.example.ui.screens.SettingsScreen
-import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.ComputersScreen
 import com.example.ui.screens.ProcessesScreen
 import com.example.ui.screens.ScriptsScreen
 import com.example.ui.components.TutorialDialog
-import com.example.ui.theme.Background
-import com.example.ui.theme.BorderSlate
-import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.theme.OnPrimaryContainerGreen
-import com.example.ui.theme.OnSurfaceTextVariant
-import com.example.ui.theme.PrimaryContainerGreen
-import com.example.ui.theme.SurfaceContainerLowest
+import com.example.ui.theme.*
 import com.example.viewmodel.MonitorViewModel
 import com.example.ui.utils.tr
 
@@ -55,39 +51,39 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+
+    // Configure sticky immersive mode (transient status & navigation bars)
+    val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+    windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+
     setContent {
       val state by viewModel.uiState.collectAsState()
       MyApplicationTheme(themeJson = state.customThemeColors) {
-        val isLoggedIn = state.isLoggedIn
+        var activeTab by rememberSaveable { mutableIntStateOf(0) }
 
-        if (!isLoggedIn) {
-          LoginScreen(viewModel = viewModel)
-        } else {
-          var activeTab by rememberSaveable { mutableIntStateOf(0) }
-
-          Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            bottomBar = {
-              CustomBottomBar(
-                activeIndex = activeTab,
-                onTabClick = { activeTab = it }
-              )
-            },
-            containerColor = Background
-          ) { innerPadding ->
-            // Animated Crossfade transition between screens
-            Crossfade(
-              targetState = activeTab,
-              modifier = Modifier
-                  .fillMaxSize()
-                  .padding(innerPadding),
-              label = "screenTransition"
-            ) { tab ->
-              when (tab) {
-                0 -> DashboardScreen(viewModel = viewModel)
-                1 -> StorageScreen(viewModel = viewModel)
-                2 -> SettingsScreen(viewModel = viewModel)
-              }
+        Scaffold(
+          modifier = Modifier.fillMaxSize(),
+          bottomBar = {
+            CustomBottomBar(
+              activeIndex = activeTab,
+              onTabClick = { activeTab = it }
+            )
+          },
+          containerColor = Background
+        ) { innerPadding ->
+          // Animated Crossfade transition between screens
+          Crossfade(
+            targetState = activeTab,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            label = "screenTransition"
+          ) { tab ->
+            when (tab) {
+              0 -> DashboardScreen(viewModel = viewModel)
+              1 -> StorageScreen(viewModel = viewModel)
+              2 -> SettingsScreen(viewModel = viewModel)
             }
           }
         }
@@ -111,6 +107,7 @@ class MainActivity : ComponentActivity() {
         if (state.showScriptsScreen) {
           ScriptsScreen(viewModel = viewModel)
         }
+
       }
     }
   }
@@ -124,53 +121,58 @@ fun CustomBottomBar(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(84.dp),
+            .height(56.dp),
         color = SurfaceContainerLowest,
         border = BorderStroke(1.dp, BorderSlate)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.navigationBars) // respects screen notch and edge gesture safety caps
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            val tabs = listOf(
-                BottomTabItem("Dashboard".tr(), Icons.Filled.Dashboard, 0),
-                BottomTabItem("Storage".tr(), Icons.Filled.Storage, 1),
-                BottomTabItem("Settings".tr(), Icons.Filled.Settings, 2)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .windowInsetsPadding(WindowInsets.navigationBars) // respects screen notch and edge gesture safety caps
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val tabs = listOf(
+                    BottomTabItem("Panel".tr(), Icons.Filled.Dashboard, 0),
+                    BottomTabItem("Almacenamiento".tr(), Icons.Filled.Storage, 1),
+                    BottomTabItem("Ajustes".tr(), Icons.Filled.Settings, 2)
+                )
 
-            tabs.forEach { tab ->
-                val isSelected = activeIndex == tab.index
-                val capBgColor = if (isSelected) PrimaryContainerGreen else Color.Transparent
-                val labelColor = if (isSelected) OnPrimaryContainerGreen else OnSurfaceTextVariant
+                tabs.forEach { tab ->
+                    val isSelected = activeIndex == tab.index
+                    val capBgColor = if (isSelected) PrimaryContainerGreen else Color.Transparent
+                    val labelColor = if (isSelected) OnPrimaryContainerGreen else OnSurfaceTextVariant
 
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(capBgColor)
-                        .clickable { onTabClick(tab.index) }
-                        .padding(vertical = 8.dp, horizontal = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.label,
-                        tint = labelColor,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = tab.label,
-                        color = labelColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
+                    Column(
+                        modifier = Modifier
+                            .width(90.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(capBgColor)
+                            .clickable { onTabClick(tab.index) }
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = tab.label,
+                            tint = labelColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = tab.label,
+                            color = labelColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }

@@ -34,10 +34,18 @@ Esta aplicación ha sido diseñada para ser ligera, rápida y proporcionar una v
 
 ## 📦 Descargas (Releases)
 
+**Última Versión: 1.0.2** 🚀
+
+### Novedades en v1.0.2:
+*   **Corrección de Errores Críticos**: Solucionado error de referencia en `SettingsScreen` que impedía la compilación.
+*   **Mejoras de UI**: Ajustes en la disposición de tarjetas y manejo de estados expandibles en pantallas anchas.
+*   **Estabilidad**: Optimización en el cierre de scopes de Compose y manejo de recursos.
+*   **Localización**: Mejoras en las traducciones y consistencia de textos.
+
 Para probar la aplicación rápidamente:
-1. Ve a la sección de **[Releases](https://github.com/Yokerman41/monitorpc-basic-android/releases)**.
-2. Descarga el archivo `.apk` e instálalo en tu Android.
-3. Asegúrate de tener el **[monitorpc-agent](https://github.com/Yokerman41/monitorpc-agent)** corriendo en tu PC.
+1. Ve a la sección de **[Releases](https://github.com/Yokerman41/monitorpc-basic-android/releases/tag/v1.0.2)**.
+2. Descarga el archivo `monitorPC-Basic-v1.0.2.apk` e instálalo en tu Android.
+3. Asegúrate de tener el **[monitorpc-agent v1.0.2](https://github.com/Yokerman41/monitorpc-agent/releases/tag/v1.0.2)** corriendo en tu PC.
 
 ---
 

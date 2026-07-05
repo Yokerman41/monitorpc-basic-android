@@ -8,7 +8,7 @@ data class SettingsEntity(
     @PrimaryKey val username: String = "admin",
     val connectionMode: String = "ADB", // "ADB" or "WIFI"
     val ipAddress: String = "192.168.1.15",
-    val port: String = "8080",
+    val port: String = "8765",
     val password: String = "••••••••",
     val autoShutdown: Boolean = true,
     val activeComputerId: Int? = null,

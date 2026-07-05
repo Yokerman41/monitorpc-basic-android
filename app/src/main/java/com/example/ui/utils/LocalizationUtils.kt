@@ -23,7 +23,11 @@ fun formatTemp(celsius: Int, unit: String): String {
 
 // Translations mapping Spanish source strings to English
 val translations = mapOf(
+    "Marca" to "Brand",
     // Common / Tabs
+    "Panel" to "Dashboard",
+    "Almacenamiento" to "Storage",
+    "Ajustes" to "Settings",
     "Dashboard" to "Dashboard",
     "Detalle" to "Detail",
     "Storage" to "Storage",
@@ -32,6 +36,15 @@ val translations = mapOf(
     "DISPOSITIVO" to "DEVICE",
     "En línea" to "Online",
     "Desconectado" to "Offline",
+    "Hilos" to "Threads",
+    "Uso" to "Usage",
+    "Total" to "Total",
+    "Procesos" to "Processes",
+    "Latencia" to "Latency",
+    "Conexión exitosa" to "Successful connection",
+    "Fallo de conexión" to "Connection failed",
+    "Error de conexión" to "Connection error",
+    "Seguridad" to "Security",
     
     // Dashboard CPU
     "PROCESADOR (CPU)" to "PROCESSOR (CPU)",
@@ -41,6 +54,11 @@ val translations = mapOf(
     "Carga CPU" to "CPU Load",
     "Carga de CPU en tiempo real" to "Real-time CPU Load",
     "Historial 60s" to "60s History",
+    "Encode" to "Encode",
+    "Decode" to "Decode",
+    "FPS" to "FPS",
+    "Carga 3D" to "3D Load",
+    "VRAM" to "VRAM",
     
     // Dashboard GPU
     "TARJETA GRÁFICA (GPU)" to "GRAPHICS CARD (GPU)",
@@ -111,6 +129,12 @@ val translations = mapOf(
     "procesos" to "processes",
     "Anterior" to "Previous",
     "Siguiente" to "Next",
+    "Administrador de Tareas" to "Task Manager",
+    "PROCESOS EN TIEMPO REAL" to "REAL-TIME PROCESSES",
+    "Total Procesos" to "Total Processes",
+    "Buscar por nombre o PID..." to "Search by name or PID...",
+    "Comandos Rápidos" to "Quick Commands",
+    "LANZAR SCRIPTS Y ACCIONES" to "LAUNCH SCRIPTS AND ACTIONS",
     "Visualizador de Carga" to "Load Visualizer",
     "Topología de procesos en tiempo real" to "Real-time process topology",
     "Alertas de Sistema" to "System Alerts",
@@ -142,6 +166,8 @@ val translations = mapOf(
     "Conectando..." to "Connecting...",
     "No se puede conectar al agente para transmitir pantalla." to "Cannot connect to the agent for screen streaming.",
     "Asegúrate de que el agente esté ejecutándose." to "Make sure the agent is running.",
+    "Análisis térmico habilitado" to "Thermal analysis enabled",
+    "Buscando..." to "Scanning...",
     
     // Settings Screen
     "Configuración de Conexión" to "Connection Settings",
@@ -225,5 +251,25 @@ val translations = mapOf(
     "1. Ejecuta el Agente en tu PC." to "1. Run the Agent on your PC.",
     "2. Configura la IP y puerto en Settings." to "2. Configure the IP and port in Settings.",
     "3. ¡Comienza a monitorear en tiempo real!" to "3. Start monitoring in real-time!",
-    "Entendido" to "Got it"
+    "Entendido" to "Got it",
+
+    // Telemetry and Storage
+    "Telemetría y Almacenamiento" to "Telemetry & Storage",
+    "Monitorea la carga, velocidad y temperatura de tu CPU y GPU en tiempo real. Además, analiza el estado de salud de tus discos y memoria RAM de manera sencilla." to "Monitor the load, speed, and temperature of your CPU and GPU in real-time. In addition, easily analyze the health status of your disks and RAM memory.",
+
+    // Settings Screen Subtitles & Categories
+    "Preferencias Generales" to "General Preferences",
+    "Red y Host" to "Network & Host",
+    "Canal de conexión, IP y puerto del host" to "Connection channel, IP and host port",
+    "Unidad de temperatura y auto-apagado" to "Temperature unit and auto-shutdown",
+    "Límites de temperatura y carga para notificaciones" to "Temperature and load limits for notifications",
+    "Usuario y contraseña para autenticación básica" to "Username and password for basic authentication",
+    "Ocultar API Key" to "Hide API Key",
+    "Ver API Key actual" to "View current API Key",
+    "Personalización Estética" to "Visual Customization",
+    "Selecciona un tema para toda la aplicación" to "Select a theme for the entire application",
+    "Temas Disponibles" to "Available Themes",
+    
+    // Pairing & Basic version errors
+    "Límite de la versión básica alcanzado (máx. 1 PC)" to "Basic version limit reached (max. 1 PC)"
 )

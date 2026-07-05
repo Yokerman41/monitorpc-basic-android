@@ -11,14 +11,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Monitor
-import androidx.compose.material.icons.filled.Router
-import androidx.compose.material.icons.filled.Sensors
-import androidx.compose.material.icons.filled.Thermostat
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,7 +24,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -42,7 +37,7 @@ import com.example.ui.components.SparklineTelemetryLineChart
 @Composable
 fun DashboardScreen(
     viewModel: MonitorViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
@@ -80,7 +75,7 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                var expanded by remember { mutableStateOf(false) }
+                var expanded by remember { mutableStateOf(value = false) }
 
                 Box {
                     Column(
@@ -178,476 +173,67 @@ fun DashboardScreen(
             }
         }
 
+        val configuration = LocalConfiguration.current
+        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val isWideScreen = configuration.screenWidthDp >= 600
+        val useTwoColumns = isLandscape || isWideScreen
+
         if (state.computers.isEmpty()) {
             EmptyDashboardState(onAddPcClick = { viewModel.setShowComputersScreen(true) })
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp), // compacted padding (was 16.dp)
-                verticalArrangement = Arrangement.spacedBy(8.dp) // compacted spacing (was 12.dp)
-            ) {
-                // Elegant System Info & Active Alerts Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, BorderSlate)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp), // compacted padding (was 16.dp)
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = state.pcOsName,
-                                    color = OnSurfaceText,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "${"Uptime".tr()}: ${state.pcUptimeFormatted}",
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                            }
-                            
-                            if (state.connectionError != null) {
-                                Text(
-                                    text = state.connectionError!!,
-                                    color = StatusWarning,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .background(StatusWarning.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 6.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-
-                        // Active Warning Alerts
-                        val alerts = mutableListOf<String>()
-                        if (state.cpuOverallTemp > state.cpuTempLimit) {
-                            alerts.add("${"Alerta".tr()}: CPU Temp (${state.cpuOverallTemp}°C) > ${state.cpuTempLimit}°C")
-                        }
-                        if (state.cpuOverallLoad > state.cpuLoadLimit) {
-                            alerts.add("${"Alerta".tr()}: CPU Load (${state.cpuOverallLoad}%) > ${state.cpuLoadLimit}%")
-                        }
-                        if (state.gpuTemp > state.gpuTempLimit) {
-                            alerts.add("${"Alerta".tr()}: GPU Temp (${state.gpuTemp}°C) > ${state.gpuTempLimit}°C")
-                        }
-                        if (state.gpuLoad > state.gpuLoadLimit) {
-                            alerts.add("${"Alerta".tr()}: GPU Load (${state.gpuLoad}%) > ${state.gpuLoadLimit}%")
-                        }
-
-                        if (alerts.isNotEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(0.5.dp)
-                                    .background(BorderSlate)
-                            )
-                            alerts.forEach { alert ->
-                                 Row(
-                                     verticalAlignment = Alignment.CenterVertically,
-                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                     modifier = Modifier.fillMaxWidth()
-                                 ) {
-                                     Icon(
-                                         imageVector = Icons.Filled.Warning,
-                                         contentDescription = "alert warning icon",
-                                         tint = StatusCritical,
-                                         modifier = Modifier.size(14.dp)
-                                     )
-                                     Text(
-                                         text = alert,
-                                         color = StatusCritical,
-                                         fontSize = 11.sp,
-                                         fontWeight = FontWeight.Bold
-                                     )
-                                 }
-                            }
-                        }
-                    }
-                }
-
-                // 1. CPU Section
-                val hasCpuAlert = state.cpuOverallTemp > state.cpuTempLimit || state.cpuOverallLoad > state.cpuLoadLimit
-                val cpuCardBorderColor = if (hasCpuAlert) StatusCritical else BorderSlate
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.5.dp, cpuCardBorderColor)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp), // compacted padding
-                        verticalArrangement = Arrangement.spacedBy(10.dp) // compacted spacing (was 16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "PROCESADOR (CPU)".tr(),
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.2.sp
-                                )
-                                Text(
-                                    text = state.cpuName,
-                                    color = OnSurfaceText,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Filled.Memory,
-                                contentDescription = "CPU Icon",
-                                tint = PrimaryNeonGreen,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        // CPU Stats Grid
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            MetricBox(label = "Uso".tr(), value = "${state.cpuOverallLoad}%", color = PrimaryNeonGreen, modifier = Modifier.weight(1f))
-                            MetricBox(label = "Velocidad".tr(), value = "${state.cpuOverallSpeedGhz} GHz", color = Color(0xFF8B5CF6), modifier = Modifier.weight(1f))
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            MetricBox(label = "Procesos".tr(), value = "${state.totalProcesses}", color = Color(0xFFF59E0B), modifier = Modifier.weight(1f))
-                            MetricBox(label = "Subproc.".tr(), value = "${state.totalThreads}", color = Color(0xFF06B6D4), modifier = Modifier.weight(1f))
-                        }
-
-                        // Sparkline Chart (Vertical fluctuation) - compacted height (was 56.dp)
-                        SparklineTelemetryLineChart(
-                            history = state.cpuSparklineHistory,
-                            strokeColor = PrimaryNeonGreen,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                        )
-
-                        // CPU Temperature Warning Capsule
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                .padding(10.dp), // compacted padding
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Thermostat,
-                                    contentDescription = "CPU temp warning",
-                                    tint = StatusWarning,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Temperatura".tr(),
-                                    color = OnSurfaceText,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                            Text(
-                                text = formatTemp(state.cpuOverallTemp, state.tempUnit),
-                                color = OnSurfaceText,
-                                fontSize = 28.sp, // larger size (was 24.sp)
-                                fontWeight = FontWeight.Bold,
-                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                            )
-                        }
-                    }
-                }
-
-                // 2. GPU Section
-                val hasGpuAlert = state.gpuTemp > state.gpuTempLimit || state.gpuLoad > state.gpuLoadLimit
-                val gpuCardBorderColor = if (hasGpuAlert) StatusCritical else BorderSlate
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.5.dp, gpuCardBorderColor)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp), // compacted padding
-                        verticalArrangement = Arrangement.spacedBy(10.dp) // compacted spacing
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "GRÁFICOS (GPU)".tr(),
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.2.sp
-                                )
-                                Text(
-                                    text = state.gpuModel,
-                                    color = OnSurfaceText,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Filled.Memory,
-                                contentDescription = "GPU Icon",
-                                tint = PrimaryNeonGreen,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        // GPU Stats Grid
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            MetricBox(label = "Carga Total".tr(), value = "${state.gpuLoad}%", color = PrimaryNeonGreen, modifier = Modifier.weight(1f))
-                            MetricBox(label = "Carga 3D".tr(), value = "${state.gpuLoad3d}%", color = Color(0xFF8B5CF6), modifier = Modifier.weight(1f))
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            MetricBox(label = "Encode".tr(), value = "${state.gpuVideoEncode}%", color = Color(0xFFF59E0B), modifier = Modifier.weight(1f))
-                            MetricBox(label = "Decode".tr(), value = "${state.gpuVideoDecode}%", color = Color(0xFF06B6D4), modifier = Modifier.weight(1f))
-                        }
-                        
-                        // VRAM
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                .border(BorderStroke(1.dp, BorderSlate.copy(alpha = 0.5f)), shape = RoundedCornerShape(8.dp))
-                                .padding(8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Memoria VRAM".tr(),
-                                color = OnSurfaceTextVariant,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "${state.gpuVramUsedGb} GB / ${state.gpuVramTotalGb} GB",
-                                color = DataBlue,
-                                fontSize = 16.sp, // larger size (was 13.sp)
-                                fontWeight = FontWeight.Bold,
-                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                            )
-                        }
-
-                        // Sparkline Chart (Vertical fluctuation) - compacted height
-                        SparklineTelemetryLineChart(
-                            history = state.gpuSparklineHistory,
-                            strokeColor = PrimaryNeonGreen,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                        )
-
-                        // GPU Temperature Warning Capsule
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Thermostat,
-                                    contentDescription = "temp warning",
-                                    tint = StatusWarning,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Temperatura".tr(),
-                                    color = OnSurfaceText,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                            Text(
-                                text = formatTemp(state.gpuTemp, state.tempUnit),
-                                color = OnSurfaceText,
-                                fontSize = 28.sp, // larger size
-                                fontWeight = FontWeight.Bold,
-                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                            )
-                        }
-
-                        if (state.fps > 0.0) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Memory,
-                                        contentDescription = "FPS Icon",
-                                        tint = PrimaryNeonGreen,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = "Rendimiento OSD (RTSS)".tr(),
-                                        color = OnSurfaceText,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                Text(
-                                    text = "${state.fps.toInt()} FPS",
-                                    color = PrimaryNeonGreen,
-                                    fontSize = 28.sp, // larger size
-                                    fontWeight = FontWeight.Bold,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 3. RAM Section
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, BorderSlate)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp), // compacted padding
-                        verticalArrangement = Arrangement.spacedBy(10.dp) // compacted spacing
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "MEMORIA RAM".tr(),
-                                color = OnSurfaceTextVariant,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.2.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // RAM detail block
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                .border(BorderStroke(1.dp, BorderSlate.copy(alpha = 0.5f)), shape = RoundedCornerShape(8.dp))
-                                .padding(10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                val pct = if (state.ramTotalGb > 0) ((state.ramUsedGb / state.ramTotalGb) * 100).toInt() else 0
-                                Text(
-                                    text = "RAM en Uso".tr(),
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "${state.ramUsedGb} GB / ${state.ramTotalGb.toInt()} GB ($pct%)",
-                                    color = PrimaryNeonGreen,
-                                    fontSize = 19.sp, // larger size (was 16.sp)
-                                    fontWeight = FontWeight.Bold,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                            }
-                        }
-
-                        // Sparkline Chart (Vertical fluctuation) - compacted height
-                        SparklineTelemetryLineChart(
-                            history = state.ramSparklineHistory,
-                            strokeColor = PrimaryNeonGreen,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                        )
-                    }
-                }
-
-                // 4. Atmospheric / Motor Invisible Card - compacted height (was 112.dp)
-                Card(
+            if (isLandscape) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(88.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, BorderSlate)
+                        .height(IntrinsicSize.Max)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(SurfaceCharcoal, Color(0xFF1E293B)),
-                                    startX = 0f,
-                                    endX = Float.POSITIVE_INFINITY
-                                )
-                            )
-                            .padding(12.dp),
-                        contentAlignment = Alignment.BottomStart
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = "Motor Invisible".tr(),
-                                color = OnSurfaceText,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Análisis de flujo térmico en tiempo real habilitado.".tr(),
-                                color = OnSurfaceTextVariant,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        CpuCard(state = state, modifier = Modifier.fillMaxHeight())
                     }
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        GpuCard(state = state, modifier = Modifier.fillMaxHeight())
+                    }
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        RamCard(state = state, modifier = Modifier.fillMaxHeight())
+                    }
+                }
+            } else if (isWideScreen) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SystemInfoCard(state = state)
+                        CpuCard(state = state)
+                        RamCard(state = state)
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        GpuCard(state = state)
+                        MotorInvisibleCard()
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SystemInfoCard(state = state)
+                    CpuCard(state = state)
+                    GpuCard(state = state)
+                    RamCard(state = state)
+                    MotorInvisibleCard()
                 }
             }
         }
@@ -744,28 +330,425 @@ fun MetricBox(
     label: String,
     value: String,
     color: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLarge: Boolean = false
 ) {
     Column(
         modifier = modifier
             .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
             .border(BorderStroke(1.dp, BorderSlate.copy(alpha = 0.5f)), shape = RoundedCornerShape(8.dp))
-            .padding(vertical = 6.dp, horizontal = 4.dp), // compacted padding (was 10.dp)
+            .padding(
+                vertical = if (isLarge) 8.dp else 5.dp,
+                horizontal = if (isLarge) 8.dp else 4.dp
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(1.dp) // compacted spacing
+        verticalArrangement = Arrangement.spacedBy(if (isLarge) 2.dp else 1.dp)
     ) {
         Text(
             text = label,
             color = OnSurfaceTextVariant,
-            fontSize = 10.sp, // larger labels (was 9.sp)
-            fontWeight = FontWeight.Medium
+            fontSize = if (isLarge) 12.sp else 9.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            softWrap = false,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
         Text(
             text = value,
             color = color,
-            fontSize = 18.sp, // larger value size (was 12.sp)
-            fontWeight = FontWeight.ExtraBold, // bolder font
-            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+            fontSize = if (isLarge) 20.sp else 11.sp,
+            fontWeight = FontWeight.ExtraBold,
+            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            maxLines = 1,
+            softWrap = false,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+fun SystemInfoCard(
+    state: com.example.viewmodel.MonitorUiState,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, BorderSlate)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = state.pcOsName,
+                        color = OnSurfaceText,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${"Uptime".tr()}: ${state.pcUptimeFormatted}",
+                        color = OnSurfaceTextVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                    )
+                }
+                
+                if (state.connectionError != null) {
+                    Text(
+                        text = state.connectionError!!,
+                        color = StatusWarning,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .background(StatusWarning.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            // Active Warning Alerts
+            val alerts = remember(state.cpuOverallTemp, state.cpuOverallLoad, state.gpuTemp, state.gpuLoad, state.cpuTempLimit, state.cpuLoadLimit, state.gpuTempLimit, state.gpuLoadLimit) {
+                val list = mutableListOf<String>()
+                if (state.cpuOverallTemp > state.cpuTempLimit) {
+                    list.add("${"Alerta".tr()}: CPU Temp (${state.cpuOverallTemp}°C) > ${state.cpuTempLimit}°C")
+                }
+                if (state.cpuOverallLoad > state.cpuLoadLimit) {
+                    list.add("${"Alerta".tr()}: CPU Load (${state.cpuOverallLoad}%) > ${state.cpuLoadLimit}%")
+                }
+                if (state.gpuTemp > state.gpuTempLimit) {
+                    list.add("${"Alerta".tr()}: GPU Temp (${state.gpuTemp}°C) > ${state.gpuTempLimit}°C")
+                }
+                if (state.gpuLoad > state.gpuLoadLimit) {
+                    list.add("${"Alerta".tr()}: GPU Load (${state.gpuLoad}%) > ${state.gpuLoadLimit}%")
+                }
+                list
+            }
+
+            if (alerts.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(0.5.dp)
+                        .background(BorderSlate)
+                )
+                alerts.forEach { alert ->
+                     Row(
+                         verticalAlignment = Alignment.CenterVertically,
+                         horizontalArrangement = Arrangement.spacedBy(6.dp),
+                         modifier = Modifier.fillMaxWidth()
+                     ) {
+                         Icon(
+                             imageVector = Icons.Filled.Warning,
+                             contentDescription = "alert warning icon",
+                             tint = StatusCritical,
+                             modifier = Modifier.size(14.dp)
+                         )
+                         Text(
+                             text = alert,
+                             color = StatusCritical,
+                             fontSize = 11.sp,
+                             fontWeight = FontWeight.Bold
+                         )
+                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CpuCard(
+    state: com.example.viewmodel.MonitorUiState,
+    modifier: Modifier = Modifier
+) {
+    val hasCpuAlert = (state.cpuOverallTemp > state.cpuTempLimit) || (state.cpuOverallLoad > state.cpuLoadLimit)
+    val cpuCardBorderColor = if (hasCpuAlert) StatusCritical else BorderSlate
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.5.dp, cpuCardBorderColor)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxHeight().padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "PROCESADOR (CPU)".tr(),
+                        color = OnSurfaceTextVariant,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = state.cpuName,
+                        color = OnSurfaceText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.Memory,
+                    contentDescription = "CPU Icon",
+                    tint = PrimaryNeonGreen,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            // CPU Stats Row 1 (2 columns - Large)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                MetricBox(label = "Uso".tr(), value = "${state.cpuOverallLoad}%", color = PrimaryNeonGreen, modifier = Modifier.weight(1f), isLarge = true)
+                MetricBox(label = "Temperatura".tr(), value = formatTemp(state.cpuOverallTemp, state.tempUnit), color = StatusWarning, modifier = Modifier.weight(1f), isLarge = true)
+            }
+            
+            // CPU Stats Row 2 (4 columns - Small)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                MetricBox(label = "Velocidad".tr(), value = "${state.cpuOverallSpeedGhz} GHz", color = Color(0xFF8B5CF6), modifier = Modifier.weight(1f), isLarge = false)
+                MetricBox(label = "Procesos".tr(), value = state.totalProcesses.toString(), color = Color(0xFFF59E0B), modifier = Modifier.weight(1f), isLarge = false)
+                MetricBox(label = "Hilos".tr(), value = "${state.totalThreads}", color = Color(0xFF06B6D4), modifier = Modifier.weight(1f), isLarge = false)
+                MetricBox(label = "Voltaje".tr(), value = "${state.cpuVoltage} V", color = DataBlue, modifier = Modifier.weight(1f), isLarge = false)
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Sparkline Chart (Vertical fluctuation)
+            SparklineTelemetryLineChart(
+                history = state.cpuSparklineHistory,
+                strokeColor = PrimaryNeonGreen,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun GpuCard(
+    state: com.example.viewmodel.MonitorUiState,
+    modifier: Modifier = Modifier
+) {
+    val hasGpuAlert = state.gpuTemp > state.gpuTempLimit || state.gpuLoad > state.gpuLoadLimit
+    val gpuCardBorderColor = if (hasGpuAlert) StatusCritical else BorderSlate
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.5.dp, gpuCardBorderColor)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxHeight().padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "GRÁFICOS (GPU)".tr(),
+                        color = OnSurfaceTextVariant,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = state.gpuModel,
+                        color = OnSurfaceText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.Memory,
+                    contentDescription = "GPU Icon",
+                    tint = PrimaryNeonGreen,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            // GPU Stats Row 1 (2 columns - Large)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                MetricBox(label = "Uso".tr(), value = "${state.gpuLoad}%", color = PrimaryNeonGreen, modifier = Modifier.weight(1f), isLarge = true)
+                MetricBox(label = "Temperatura".tr(), value = formatTemp(state.gpuTemp, state.tempUnit), color = StatusWarning, modifier = Modifier.weight(1f), isLarge = true)
+            }
+            
+            // GPU Stats Row 2 (4 columns - Small)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val vramDisplay = "${state.gpuVramUsedGb.toInt()}G/${state.gpuVramTotalGb.toInt()}G"
+                MetricBox(label = "VRAM".tr(), value = vramDisplay, color = DataBlue, modifier = Modifier.weight(1f), isLarge = false)
+                
+                val rightValue = if (state.fps > 0.0) "${state.fps.toInt()} FPS" else "${state.gpuLoad3d}%"
+                val rightLabel = if (state.fps > 0.0) "FPS".tr() else "Carga 3D".tr()
+                MetricBox(label = rightLabel, value = rightValue, color = Color(0xFF8B5CF6), modifier = Modifier.weight(1f), isLarge = false)
+                
+                MetricBox(label = "Encode".tr(), value = "${state.gpuVideoEncode}%", color = Color(0xFFF59E0B), modifier = Modifier.weight(1f), isLarge = false)
+                MetricBox(label = "Decode".tr(), value = "${state.gpuVideoDecode}%", color = Color(0xFF06B6D4), modifier = Modifier.weight(1f), isLarge = false)
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Sparkline Chart (Vertical fluctuation)
+            SparklineTelemetryLineChart(
+                history = state.gpuSparklineHistory,
+                strokeColor = PrimaryNeonGreen,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun RamCard(
+    state: com.example.viewmodel.MonitorUiState,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, BorderSlate)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxHeight().padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "MEMORIA RAM".tr(),
+                        color = OnSurfaceTextVariant,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = state.ramManufacturer,
+                        color = OnSurfaceText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.Memory,
+                    contentDescription = "RAM Icon",
+                    tint = PrimaryNeonGreen,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            // RAM Stats Row (2 columns - Large)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val pct = if (state.ramTotalGb > 0) ((state.ramUsedGb / state.ramTotalGb) * 100).toInt() else 0
+                MetricBox(label = "Uso".tr(), value = "${state.ramUsedGb} GB", color = PrimaryNeonGreen, modifier = Modifier.weight(1f), isLarge = true)
+                MetricBox(label = "Total".tr(), value = "${state.ramTotalGb.toInt()} GB", color = DataBlue, modifier = Modifier.weight(1f), isLarge = true)
+            }
+
+            // RAM Stats Row 2 (4 columns - Small)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                MetricBox(label = "Marca".tr(), value = state.ramManufacturer, color = Color(0xFF8B5CF6), modifier = Modifier.weight(1f), isLarge = false)
+                MetricBox(label = "Tipo".tr(), value = state.ramType, color = Color(0xFFF59E0B), modifier = Modifier.weight(1f), isLarge = false)
+                MetricBox(label = "Reloj".tr(), value = "${state.ramSpeedMhz} MHz", color = Color(0xFF06B6D4), modifier = Modifier.weight(1f), isLarge = false)
+                MetricBox(label = "Módulos".tr(), value = "${state.ramModulesCount}", color = DataBlue, modifier = Modifier.weight(1f), isLarge = false)
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Sparkline Chart (Vertical fluctuation)
+            SparklineTelemetryLineChart(
+                history = state.ramSparklineHistory,
+                strokeColor = PrimaryNeonGreen,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun MotorInvisibleCard(
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, BorderSlate)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(SurfaceCharcoal, Color(0xFF1E293B)),
+                        startX = 0f,
+                        endX = Float.POSITIVE_INFINITY
+                    )
+                )
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Motor Invisible".tr(),
+                    color = OnSurfaceText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Análisis térmico habilitado".tr(),
+                    color = OnSurfaceTextVariant,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
     }
 }

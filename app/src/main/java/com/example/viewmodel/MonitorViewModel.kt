@@ -11,7 +11,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
@@ -29,9 +28,14 @@ import kotlinx.coroutines.Job
 import com.example.ui.utils.tr
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okhttp3.Response
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.supervisorScope
+import java.net.InetAddress
 
 // Process Data Class
 data class ProcessItem(
@@ -89,7 +93,7 @@ data class ScriptItem(
 data class MonitorUiState(
     // Connection configs (persisted)
     val connectionMode: String = "ADB",
-    val ipAddress: String = "192.168.100.116",
+    val ipAddress: String = "",
     val port: String = "8765",
     val username: String = "admin",
     val password: String = "••••••••",
@@ -161,9 +165,12 @@ data class MonitorUiState(
     val gpuVramTotalGb: Double = 0.0,
     val gpuTemp: Int = 0,
 
-    // RAM Metrics
     val ramUsedGb: Double = 0.0,
     val ramTotalGb: Double = 0.0,
+    val ramManufacturer: String = "Corsair Vengeance",
+    val ramType: String = "DDR4",
+    val ramSpeedMhz: Int = 3200,
+    val ramModulesCount: Int = 2,
 
     // Wifi / Latency
     val wifiSSID: String = "WiFi",
@@ -214,6 +221,7 @@ sealed class TestStatus {
     object IDLE : TestStatus()
     object TESTING : TestStatus()
     data class SUCCESS(val message: String) : TestStatus()
+    data class FAILURE(val message: String) : TestStatus()
 }
 
 class MonitorViewModel(application: Application) : AndroidViewModel(application) {
@@ -242,12 +250,12 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
         .connectTimeout(5000, java.util.concurrent.TimeUnit.MILLISECONDS)
         .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)  // 0 = no timeout for WS
         .writeTimeout(5000, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .pingInterval(3000, java.util.concurrent.TimeUnit.MILLISECONDS)
         .retryOnConnectionFailure(false)
         .build()
     private var lastBytesSent: Long = 0L
     private var lastBytesRecv: Long = 0L
     private var lastPollTime: Long = 0L
-    private var simUptimeSeconds = 1200L
     private var consecutiveFailures = 0
 
     private val _screenBitmap = MutableStateFlow<ImageBitmap?>(null)
@@ -260,6 +268,7 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
 
     private var nsdManager: NsdManager? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
     private var webSocket: WebSocket? = null
     private var isWebSocketConnected = false
 
@@ -277,12 +286,13 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
             gpuViewMode = gpuMode,
             ramViewMode = ramMode,
             customThemeColors = themeJson,
-            isProUser = true
+            isProUser = true,
+            isLoggedIn = true,
+            username = "admin"
         )
 
         startNsdDiscovery()
-        // We no longer collect settings globally in init. 
-        // It happens after login.
+        startUserCollection("admin")
     }
 
     private fun startUserCollection(username: String) {
@@ -378,6 +388,10 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
             // RAM
             val ramUsed = ramJson.getDouble("used_gb")
             val ramTotal = ramJson.getDouble("total_gb")
+            val ramManufacturer = ramJson.optString("manufacturer", "Corsair Vengeance")
+            val ramType = ramJson.optString("type", "DDR4")
+            val ramSpeed = ramJson.optInt("speed_mhz", 3200)
+            val ramModules = ramJson.optInt("modules_count", 2)
 
             // Network
             val bytesSent = netJson.getLong("bytes_sent")
@@ -423,15 +437,26 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
             }
 
             // CPU speed fluctuation
-            val nextCpuSpeed = (4.5 + Random.nextDouble(-0.1, 0.25)).coerceIn(4.2, 5.0)
+            val nextCpuSpeed = if (cpuJson.has("current_speed_ghz")) {
+                cpuJson.getDouble("current_speed_ghz")
+            } else {
+                (4.5 + Random.nextDouble(-0.1, 0.25)).coerceIn(4.2, 5.0)
+            }
             val roundedSpeed = Math.round(nextCpuSpeed * 10.0) / 10.0
             
-            // CPU temperature: dynamically estimated based on load
-            val loadFactor = cpuUsage / 100.0
-            val baseTemp = 38.0 + (loadFactor * 42.0)
-            val nextCpuTemp = (baseTemp + Random.nextInt(-2, 3)).toInt().coerceIn(30, 95)
+            val nextCpuTemp = if (cpuJson.has("temperature_c")) {
+                cpuJson.getInt("temperature_c")
+            } else {
+                val loadFactor = cpuUsage / 100.0
+                val baseTemp = 38.0 + (loadFactor * 42.0)
+                (baseTemp + Random.nextInt(-2, 3)).toInt().coerceIn(30, 95)
+            }
             
-            val nextCpuVoltage = Math.round((1.34 + Random.nextDouble(-0.02, 0.03)) * 100.0) / 100.0
+            val nextCpuVoltage = if (cpuJson.has("voltage_v")) {
+                cpuJson.getDouble("voltage_v")
+            } else {
+                Math.round((1.34 + Random.nextDouble(-0.02, 0.03)) * 100.0) / 100.0
+            }
 
             // CPU overall load sparkline history (last 30 points)
             val nextSparkline = _uiState.value.cpuSparklineHistory.toMutableList()
@@ -511,13 +536,25 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
                         dType.contains("SSD", ignoreCase = true) -> "storage"
                         else -> "hard_drive"
                     }
-                    val dStatus = when {
-                        dPercent > 90 -> "Atención"
-                        dPercent > 70 -> "Estable"
-                        else -> "Excelente"
+                    val dStatus = if (d.has("status")) {
+                        d.getString("status")
+                    } else {
+                        when {
+                            dPercent > 90 -> "Atención"
+                            dPercent > 70 -> "Estable"
+                            else -> "Excelente"
+                        }
                     }
-                    val dLifePct = (100 - dPercent).coerceIn(0, 100)
-                    val existingTemp = _uiState.value.drives.getOrNull(i)?.tempCelsius ?: 40
+                    val dLifePct = if (d.has("life_pct")) {
+                        d.getInt("life_pct")
+                    } else {
+                        (100 - dPercent).coerceIn(0, 100)
+                    }
+                    val existingTemp = if (d.has("temp_c")) {
+                        d.getInt("temp_c")
+                    } else {
+                        _uiState.value.drives.getOrNull(i)?.tempCelsius ?: 40
+                    }
 
                     val driveLetter = dMountpoint.trimEnd('\\').trimEnd('/')
                     val displayName = if (dName.startsWith("Disco ")) {
@@ -599,6 +636,10 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
                     gpuVramTotalGb = newGpuVramTotal,
                     ramUsedGb = ramUsed,
                     ramTotalGb = ramTotal,
+                    ramManufacturer = ramManufacturer,
+                    ramType = ramType,
+                    ramSpeedMhz = ramSpeed,
+                    ramModulesCount = ramModules,
                     cores = updatedCores,
                     wifiLatencyMs = if (latency > 0) latency else _uiState.value.wifiLatencyMs,
                     drives = updatedDrives,
@@ -628,6 +669,7 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
     private fun startTelemetryLoop() {
         telemetryJob?.cancel()
         telemetryLoopActive = false
+        stopWebSocketStream()
         if (_uiState.value.activeComputerId == null) return
         telemetryLoopActive = true
         telemetryJob = viewModelScope.launch(Dispatchers.IO) {
@@ -657,7 +699,9 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
 
                             // Start WebSocket if not connected (any mode with valid IP)
                             if (!isWebSocketConnected) {
-                                startWebSocketStream()
+                                withContext(Dispatchers.Main) {
+                                    startWebSocketStream()
+                                }
                             }
                         } else {
                             throw IOException("HTTP error ${response.code}")
@@ -669,8 +713,8 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
                         consecutiveFailures++
                         val errorMsg = getErrorMessage(e)
                         withContext(Dispatchers.Main) {
-                            // #12: Disconnect after 2 failures (was 3)
-                            if (consecutiveFailures >= 2) {
+                            // #12: Increased threshold to 5 to avoid flickering on minor packet loss
+                            if (consecutiveFailures >= 5) {
                                 _uiState.value = _uiState.value.copy(
                                     isConnected = false,
                                     connectionError = errorMsg,
@@ -708,14 +752,14 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
                                 stopWebSocketStream()
                             } else {
                                 _uiState.value = _uiState.value.copy(
-                                    connectionError = "Reconectando... (${consecutiveFailures}/2)"
+                                    connectionError = "Reconectando... (${consecutiveFailures}/5)"
                                 )
                             }
                         }
                     }
                 }
 
-                delay(2000)
+                delay(3000) // Increased delay to 3s for better stability on busy networks
             }
             telemetryLoopActive = false
         }
@@ -767,39 +811,33 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
         if (nsdManager != null) return
         val context = getApplication<Application>().applicationContext
         nsdManager = context.getSystemService(android.content.Context.NSD_SERVICE) as NsdManager
+
+        val wifiManager = context.getSystemService(android.content.Context.WIFI_SERVICE) as WifiManager
+        multicastLock = wifiManager.createMulticastLock("monitorpc_discovery")
+        multicastLock?.setReferenceCounted(false)
+        try {
+            multicastLock?.acquire()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         
         discoveryListener = object : NsdManager.DiscoveryListener {
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                nsdManager?.stopServiceDiscovery(this)
+                stopNsdDiscovery()
             }
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                nsdManager?.stopServiceDiscovery(this)
+                stopNsdDiscovery()
             }
             override fun onDiscoveryStarted(serviceType: String) {}
             override fun onDiscoveryStopped(serviceType: String) {}
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                // Better matching: some devices report types with trailing dots or 'local.'
-                if (serviceInfo.serviceType.contains("_monitorpc")) {
-                    nsdManager?.resolveService(serviceInfo, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
-                        override fun onServiceResolved(resolvedServiceInfo: NsdServiceInfo) {
-                            val host = resolvedServiceInfo.host.hostAddress ?: ""
-                            val port = resolvedServiceInfo.port
-                            val name = resolvedServiceInfo.serviceName
-                            
-                            val cleanHost = if (host.contains("%")) host.substringBefore("%") else host
-                            if (cleanHost.isNotEmpty()) {
-                                viewModelScope.launch(Dispatchers.Main) {
-                                    val currentDiscovered = _uiState.value.discoveredComputers.toMutableList()
-                                    // Match by IP to avoid duplicate entries for the same PC
-                                    if (currentDiscovered.none { it.ip == cleanHost }) {
-                                        currentDiscovered.add(DiscoveredComputer(name, cleanHost, port.toString()))
-                                        _uiState.value = _uiState.value.copy(discoveredComputers = currentDiscovered)
-                                    }
-                                }
-                            }
-                        }
-                    })
+                // Log service found for debugging (broad match)
+                val type = serviceInfo.serviceType.lowercase()
+                val name = serviceInfo.serviceName.lowercase()
+                
+                // Many PC agents register as _monitorpc._tcp. or sometimes _http._tcp. with a custom name
+                if (type.contains("monitorpc") || name.contains("monitorpc") || type.contains("_http")) {
+                    resolveServiceWithRetry(serviceInfo)
                 }
             }
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {
@@ -811,14 +849,53 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
         }
         
         try {
+            // Some systems need the trailing dot, others don't. We'll try the standard one with dot first.
             nsdManager?.discoverServices("_monitorpc._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
+    private fun resolveServiceWithRetry(serviceInfo: NsdServiceInfo, retryCount: Int = 0) {
+        nsdManager?.resolveService(serviceInfo, object : NsdManager.ResolveListener {
+            override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                if (retryCount < 3) {
+                    viewModelScope.launch {
+                        delay(1000)
+                        resolveServiceWithRetry(serviceInfo, retryCount + 1)
+                    }
+                }
+            }
+
+            override fun onServiceResolved(resolvedServiceInfo: NsdServiceInfo) {
+                val host = resolvedServiceInfo.host
+                val address = host.hostAddress ?: ""
+                val port = resolvedServiceInfo.port
+                val name = resolvedServiceInfo.serviceName
+
+                // Handle IPv6 zone indices and ensure clean address
+                val cleanHost = if (address.contains("%")) address.substringBefore("%") else address
+                
+                if (cleanHost.isNotEmpty()) {
+                    viewModelScope.launch(Dispatchers.Main) {
+                        val currentDiscovered = _uiState.value.discoveredComputers.toMutableList()
+                        if (currentDiscovered.none { it.ip == cleanHost }) {
+                            currentDiscovered.add(DiscoveredComputer(name, cleanHost, port.toString()))
+                            _uiState.value = _uiState.value.copy(discoveredComputers = currentDiscovered)
+                        }
+                    }
+                }
+            }
+        })
+    }
+
     fun stopNsdDiscovery() {
         try {
+            multicastLock?.let {
+                if (it.isHeld) it.release()
+            }
+            multicastLock = null
+
             if (nsdManager != null && discoveryListener != null) {
                 nsdManager?.stopServiceDiscovery(discoveryListener)
             }
@@ -834,6 +911,83 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
         stopNsdDiscovery()
         _uiState.value = _uiState.value.copy(discoveredComputers = emptyList())
         startNsdDiscovery()
+        // Fallback: escaneo paralelo de subred HTTP (funciona sin mDNS)
+        startSubnetScan()
+    }
+
+    /**
+     * Obtiene la IP del dispositivo Android en la red WiFi actual.
+     */
+    private fun getDeviceLocalIp(): String? {
+        val context = getApplication<Application>().applicationContext
+        val wifiManager = context.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
+        val info = wifiManager?.connectionInfo ?: return null
+        val ipInt = info.ipAddress
+        if (ipInt == 0) return null
+        return String.format(
+            "%d.%d.%d.%d",
+            ipInt and 0xff,
+            ipInt shr 8 and 0xff,
+            ipInt shr 16 and 0xff,
+            ipInt shr 24 and 0xff
+        )
+    }
+
+    /**
+     * Escanea en paralelo las 254 IPs de la subred /24 del teléfono probando el
+     * endpoint HTTP del agente (/health). Si responde, agrega el equipo a discoveredComputers.
+     * Timeout muy corto por host (600ms) para que el scan completo dure ~3-4s.
+     */
+    private fun startSubnetScan() {
+        val localIp = getDeviceLocalIp() ?: return
+        val subnet = localIp.substringBeforeLast(".")
+        val agentPort = _uiState.value.port.ifEmpty { "8765" }
+
+        // Cliente HTTP ultra-rápido solo para el scan
+        val scanClient = OkHttpClient.Builder()
+            .connectTimeout(600, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .readTimeout(600, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            supervisorScope {
+                val jobs = (1..254).map { lastOctet ->
+                    async {
+                        val candidateIp = "$subnet.$lastOctet"
+                        if (candidateIp == localIp) return@async // skip device's own IP
+                        try {
+                            val url = "http://$candidateIp:$agentPort/health"
+                            val req = Request.Builder().url(url).get().build()
+                            scanClient.newCall(req).execute().use { resp ->
+                                if (resp.isSuccessful) {
+                                    // Intentamos extraer el nombre del hostname del agente
+                                    val body = resp.body?.string() ?: ""
+                                    val agentName = try {
+                                        val json = JSONObject(body)
+                                        json.optString("hostname", "")
+                                            .ifEmpty { json.optString("agent_name", "") }
+                                            .ifEmpty { "MonitorPC ($candidateIp)" }
+                                    } catch (e: Exception) {
+                                        "MonitorPC ($candidateIp)"
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        val current = _uiState.value.discoveredComputers.toMutableList()
+                                        if (current.none { it.ip == candidateIp }) {
+                                            current.add(DiscoveredComputer(agentName, candidateIp, agentPort))
+                                            _uiState.value = _uiState.value.copy(discoveredComputers = current)
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // Host no encontrado o sin agente — ignorar
+                        }
+                    }
+                }
+                jobs.forEach { it.await() }
+            }
+        }
     }
 
     fun refreshProcesses() {
@@ -900,10 +1054,7 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
                 val request = buildPostRequest(url, body)
                 httpClient.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
-                        val respBody = response.body?.string() ?: ""
-                        val respJson = JSONObject(respBody)
                         // killed_pids is an array in the response
-                        val killedCount = respJson.optJSONArray("killed_pids")?.length() ?: 1
                         refreshProcesses()
                         withContext(Dispatchers.Main) {
                             showFeedback("✅ Proceso finalizado")
@@ -1033,9 +1184,13 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
-    fun dismissProRequiredDialog() {}
+    fun dismissProRequiredDialog() {
+        _uiState.value = _uiState.value.copy(showProRequiredDialog = false)
+    }
 
-    fun showProRequiredDialog() {}
+    fun showProRequiredDialog() {
+        _uiState.value = _uiState.value.copy(showProRequiredDialog = true)
+    }
 
     fun toggleProcessSortByCpu() {
         _uiState.value = _uiState.value.copy(processesSortByCpu = !_uiState.value.processesSortByCpu)
@@ -1114,6 +1269,38 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun pairUsbAutomatic(onResult: (String?) -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val url = "http://127.0.0.1:8765/pair/usb"
+            try {
+                val deviceName = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (USB)"
+                val json = JSONObject().put("device_name", deviceName)
+                val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+                val request = Request.Builder().url(url).post(body).build()
+
+                httpClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val respBody = response.body?.string() ?: ""
+                        val respJson = JSONObject(respBody)
+                        val apiKey = respJson.getString("api_key")
+                        withContext(Dispatchers.Main) {
+                            showFeedback("✅ Vinculado por USB")
+                            onResult(apiKey)
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            onResult(null)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onResult(null)
+                }
+            }
+        }
+    }
+
     // Confirmation dialog controls
     fun showLockConfirm() { _uiState.value = _uiState.value.copy(showLockConfirmDialog = true) }
     fun dismissLockConfirm() { _uiState.value = _uiState.value.copy(showLockConfirmDialog = false) }
@@ -1122,162 +1309,11 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
     fun showLogoutPcConfirm() { _uiState.value = _uiState.value.copy(showLogoutPcConfirmDialog = true) }
     fun dismissLogoutPcConfirm() { _uiState.value = _uiState.value.copy(showLogoutPcConfirmDialog = false) }
 
-    private fun simulateLiveFluctuations() {
-        // Change CPU load slightly (38% to 48%)
-        val currState = _uiState.value
-        val nextTotalProcesses = (currState.totalProcesses + Random.nextInt(-1, 2)).coerceIn(100, 1000)
-        val nextTotalThreads = (currState.totalThreads + Random.nextInt(-10, 11)).coerceIn(2000, 15000)
-        val nextCpuLoad = Random.nextInt(38, 49)
-        val nextCpuSpeed = (4.5 + Random.nextDouble(-0.1, 0.25)).coerceIn(4.2, 5.0)
-        // round to 1 decimal
-        val roundedSpeed = Math.round(nextCpuSpeed * 10.0) / 10.0
-        
-        // Link temp to load
-        val loadFactor = nextCpuLoad / 100.0
-        val baseTemp = 38.0 + (loadFactor * 42.0)
-        val nextCpuTemp = (baseTemp + Random.nextInt(-2, 3)).toInt().coerceIn(30, 95)
-        
-        val nextCpuVoltage = Math.round((1.34 + Random.nextDouble(-0.02, 0.03)) * 100.0) / 100.0
-
-        // Sparkline update (shift left, add new value)
-        val nextSparkline = currState.cpuSparklineHistory.toMutableList()
-        if (nextSparkline.isNotEmpty()) nextSparkline.removeAt(0)
-        nextSparkline.add(nextCpuLoad)
-
-        // Temp history update
-        val nextTempHistory = currState.cpuTempHistory.toMutableList()
-        if (nextTempHistory.isNotEmpty()) nextTempHistory.removeAt(0)
-        nextTempHistory.add(nextCpuTemp)
-
-        // GPU load slight update
-        val nextGpuLoad = (currState.gpuLoad + Random.nextInt(-3, 4)).coerceIn(58, 72)
-        val nextGpuTemp = (currState.gpuTemp + Random.nextInt(-1, 2)).coerceIn(59, 66)
-
-        // Sparkline updates for GPU and RAM
-        val nextGpuSparkline = currState.gpuSparklineHistory.toMutableList()
-        if (nextGpuSparkline.size >= 30) nextGpuSparkline.removeAt(0)
-        nextGpuSparkline.add(nextGpuLoad)
-
-        // RAM load slight update
-        val nextRamUsedGb = (currState.ramUsedGb + Random.nextDouble(-0.2, 0.35)).coerceIn(11.2, 13.8)
-        val roundedRam = Math.round(nextRamUsedGb * 10.0) / 10.0
-
-        val nextRamSparkline = currState.ramSparklineHistory.toMutableList()
-        if (nextRamSparkline.size >= 30) nextRamSparkline.removeAt(0)
-        val ramPctSim = if (currState.ramTotalGb > 0.0) ((roundedRam / currState.ramTotalGb) * 100).toInt() else 0
-        nextRamSparkline.add(ramPctSim)
-
-        // Cores slight adjustments
-        val updatedCores = currState.cores.map { core ->
-            val factor = Random.nextDouble(-0.05, 0.05)
-            val coreSpeed = (core.speedGhz + factor * 2).coerceIn(1.5, 6.0)
-            val roundedCoreSpeed = Math.round(coreSpeed * 10.0) / 10.0
-            val coreTemp = (core.tempCelsius + Random.nextInt(-2, 3)).coerceIn(30, 95)
-            val coreLoad = (core.loadPercentage + factor).coerceIn(0.0, 1.0)
-            core.copy(
-                speedGhz = roundedCoreSpeed,
-                tempCelsius = coreTemp,
-                loadPercentage = coreLoad
-            )
-        }
-
-        // Calculate dynamic statistics
-        val maxCoreSpeed = updatedCores.maxOfOrNull { it.speedGhz } ?: roundedSpeed
-        val avgCoreSpeed = updatedCores.map { it.speedGhz }.average().let { Math.round(it * 10.0) / 10.0 }
-        val maxCoreTemp = updatedCores.maxOfOrNull { it.tempCelsius } ?: nextCpuTemp
-        val minCoreTemp = updatedCores.minOfOrNull { it.tempCelsius } ?: nextCpuTemp
-
-        // Latency and drives temp updates
-        val nextLatency = (currState.wifiLatencyMs + Random.nextInt(-2, 3)).coerceIn(9, 16)
-        
-        val updatedDrives = currState.drives.map { drive ->
-            val change = Random.nextInt(-1, 2)
-            drive.copy(
-                tempCelsius = (drive.tempCelsius + change).coerceIn(30, 62)
-            )
-        }
-
-        // CPU live updates in processes list
-        val updatedProcesses = currState.processes.map { process ->
-            if (process.name == "render_engine.exe") {
-                val nextCpu = (process.cpu + Random.nextDouble(-2.5, 3.0)).coerceIn(70.0, 92.0)
-                val roundedCpu = Math.round(nextCpu * 10.0) / 10.0
-                process.copy(cpu = roundedCpu)
-            } else if (process.name == "chrome.exe") {
-                val nextCpu = (process.cpu + Random.nextDouble(-1.0, 1.2)).coerceIn(8.0, 16.0)
-                val roundedCpu = Math.round(nextCpu * 10.0) / 10.0
-                process.copy(cpu = roundedCpu)
-            } else {
-                process
-            }
-        }
-
-        val nextFanSpeed = if (currState.fansEnabled) {
-            (1240 + Random.nextInt(-15, 20)).coerceIn(1120, 1380)
-        } else {
-            0
-        }
-
-        // Simulate upload and download speed
-        val rawUpload = Random.nextDouble(0.5, 3.5)
-        val nextUploadSpeed = "${String.format("%.1f", rawUpload)} MB/s"
-        val rawDownload = Random.nextDouble(2.0, 24.5)
-        val nextDownloadSpeed = "${String.format("%.1f", rawDownload)} MB/s"
-
-        val totalGb = updatedDrives.sumOf { it.totalGb }
-        val usedGb = updatedDrives.sumOf { it.usedGb }
-        val freeGb = (totalGb - usedGb).coerceAtLeast(0.0)
-        
-        val totalTb = Math.round((totalGb / 1024.0) * 10.0) / 10.0
-        val usedTb = Math.round((usedGb / 1024.0) * 10.0) / 10.0
-        val freeTb = Math.round((freeGb / 1024.0) * 10.0) / 10.0
-        val usedPct = if (totalGb > 0.0) ((usedGb / totalGb) * 100.0).toInt().coerceIn(0, 100) else 0
-
-        simUptimeSeconds += 2
-        val nextUptime = formatUptime(simUptimeSeconds)
-        val nextOs = "Windows 11 Pro (Simulado)"
-        val simDiskRead = formatSpeed(Random.nextDouble(1024.0 * 200, 1024.0 * 1024 * 8))
-        val simDiskWrite = formatSpeed(Random.nextDouble(1024.0 * 50, 1024.0 * 1024 * 3))
-
-        _uiState.value = currState.copy(
-            pcUptimeFormatted = nextUptime,
-            pcOsName = nextOs,
-            diskReadSpeedFormatted = simDiskRead,
-            diskWriteSpeedFormatted = simDiskWrite,
-            cpuOverallLoad = nextCpuLoad,
-            cpuOverallSpeedGhz = roundedSpeed,
-            totalProcesses = nextTotalProcesses,
-            totalThreads = nextTotalThreads,
-            cpuOverallTemp = nextCpuTemp,
-            cpuVoltage = nextCpuVoltage,
-            cpuSparklineHistory = nextSparkline,
-            cpuTempHistory = nextTempHistory,
-            gpuSparklineHistory = nextGpuSparkline,
-            ramSparklineHistory = nextRamSparkline,
-            cpuMaxFreqGhz = maxCoreSpeed,
-            cpuAvgFreqGhz = avgCoreSpeed,
-            cpuMaxTemp = maxCoreTemp,
-            cpuMinTemp = minCoreTemp,
-            gpuLoad = nextGpuLoad,
-            gpuTemp = nextGpuTemp,
-            ramUsedGb = roundedRam,
-            cores = updatedCores,
-            wifiLatencyMs = nextLatency,
-            drives = updatedDrives,
-            globalStorageTotalTb = totalTb,
-            globalStorageUsedTb = usedTb,
-            globalStorageFreeTb = freeTb,
-            globalStorageUsedPct = usedPct,
-            processes = updatedProcesses,
-            currentFanSpeedRpm = nextFanSpeed,
-            networkUploadSpeed = nextUploadSpeed,
-            networkDownloadSpeed = nextDownloadSpeed
-        )
-    }
-
     // Setters called from UI fields
     fun updateConnectionMode(mode: String) {
         _uiState.value = _uiState.value.copy(connectionMode = mode)
+        saveConfig()
+        startTelemetryLoop()
     }
 
     fun updateIpAddress(ip: String) {
@@ -1354,13 +1390,13 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val curr = _uiState.value
             val entity = SettingsEntity(
+                username = curr.username, // Siempre usar el usuario activo para no sobreescribir ajeno
                 connectionMode = curr.connectionMode,
                 ipAddress = curr.ipAddress,
                 port = curr.port,
-                username = curr.username,
                 password = curr.password,
                 autoShutdown = curr.autoShutdown,
-                activeComputerId = curr.activeComputerId,  // #17 fix: was missing
+                activeComputerId = curr.activeComputerId,
                 tempUnit = curr.tempUnit,
                 cpuTempLimit = curr.cpuTempLimit,
                 cpuLoadLimit = curr.cpuLoadLimit,
@@ -1388,28 +1424,33 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
                 val request = buildRequest(url)
                 httpClient.newCall(request).execute().use { response ->
                     val latency = System.currentTimeMillis() - startTime
-                    val msg = if (response.isSuccessful) {
-                        "${"Conexión exitosa".tr()}: ${"Latencia".tr()} ${latency}ms | ${"Servidor Activo".tr()}"
-                    } else {
-                        "${"Fallo de conexión".tr()}: ${"Servidor respondió con código".tr()} ${response.code}"
-                    }
                     withContext(Dispatchers.Main) {
-                        _uiState.value = _uiState.value.copy(
-                            testConnectionRunStatus = TestStatus.SUCCESS(msg)
-                        )
+                        if (response.isSuccessful) {
+                            val msg = "${"Conexión exitosa".tr()}: ${"Latencia".tr()} ${latency}ms"
+                            _uiState.value = _uiState.value.copy(
+                                testConnectionRunStatus = TestStatus.SUCCESS(msg)
+                            )
+                        } else {
+                            val msg = "${"Fallo de conexión".tr()}: código ${response.code}"
+                            _uiState.value = _uiState.value.copy(
+                                testConnectionRunStatus = TestStatus.FAILURE(msg)
+                            )
+                        }
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
+                    val msg = "${"Error de conexión".tr()}: ${getErrorMessage(e)}"
                     _uiState.value = _uiState.value.copy(
-                        testConnectionRunStatus = TestStatus.SUCCESS("${"Error de conexión".tr()}: ${e.message}")
+                        testConnectionRunStatus = TestStatus.FAILURE(msg)
                     )
                 }
             }
             
             delay(6000)
             withContext(Dispatchers.Main) {
-                if (_uiState.value.testConnectionRunStatus is TestStatus.SUCCESS) {
+                val status = _uiState.value.testConnectionRunStatus
+                if (status is TestStatus.SUCCESS || status is TestStatus.FAILURE) {
                     _uiState.value = _uiState.value.copy(testConnectionRunStatus = TestStatus.IDLE)
                 }
             }
@@ -1515,17 +1556,8 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun logout() {
-        settingsCollectionJob?.cancel()
-        computersCollectionJob?.cancel()
-        telemetryJob?.cancel()
-        stopMirroring()
-        stopWebSocketStream()
-        
-        // Restart discovery to clear cache and find devices again for the next user
-        stopNsdDiscovery()
-        startNsdDiscovery()
-        
-        _uiState.value = MonitorUiState() // Reset to clean state
+        // En esta versión el logout se ha deshabilitado para entrar directo al Dashboard.
+        // Si necesitasemos volver a implementarlo, se haría aquí.
     }
 
     fun register(user: String, pass: String) {
@@ -1632,7 +1664,7 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
     fun addComputer(name: String, ip: String, port: String, user: String, pass: String, apiKey: String = "") {
         viewModelScope.launch {
             if (_uiState.value.computers.size >= 1) {
-                showFeedback("❌ Límite de 1 PC (Versión Básica)")
+                showFeedback("❌ ${ "Límite de la versión básica alcanzado (máx. 1 PC)".tr() }")
                 return@launch
             }
             val computer = ComputerEntity(
@@ -1680,11 +1712,7 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
                     startMirroring()
                 }
                 
-                if (updatedSettings.connectionMode == "WIFI") {
-                    startWebSocketStream()
-                } else {
-                    stopWebSocketStream()
-                }
+                startTelemetryLoop()
             }
         }
     }
@@ -1757,6 +1785,7 @@ class MonitorViewModel(application: Application) : AndroidViewModel(application)
                     port = port,
                     apiKey = apiKey
                 )
+                startTelemetryLoop()
             }
         }
     }

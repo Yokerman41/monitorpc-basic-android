@@ -140,14 +140,14 @@ fun TutorialDialog(
                             )
                         }
                         Text(
-                            text = "Espejo y Acciones de PC".tr(),
+                            text = "Telemetría y Almacenamiento".tr(),
                             color = OnSurfaceText,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "En la pestaña 'Mirror' puedes transmitir la pantalla de tu PC a 30 FPS en tiempo real. Además, podrás bloquear tu PC, cerrar sesión de usuario o suspender el equipo directamente desde tu móvil.".tr(),
+                            text = "Monitorea la carga, velocidad y temperatura de tu CPU y GPU en tiempo real. Además, analiza el estado de salud de tus discos y memoria RAM de manera sencilla.".tr(),
                             color = OnSurfaceTextVariant,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,

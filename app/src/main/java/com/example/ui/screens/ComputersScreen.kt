@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Monitor
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,7 +45,7 @@ fun ComputersScreen(
 
     var showAddDialog by remember { mutableStateOf(false) }
     var computerToEdit by remember { mutableStateOf<ComputerEntity?>(null) }
-    val limitReached = state.computers.size >= 1
+    val limitReached = state.computers.size >= 2
 
     // Refresh discovery every time the screen is opened
     LaunchedEffect(Unit) {
@@ -82,8 +83,16 @@ fun ComputersScreen(
                     text = "Mis Computadores".tr(),
                     color = OnSurfaceText,
                     fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
+                IconButton(onClick = { viewModel.refreshDiscovery() }) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = "Refrescar".tr(),
+                        tint = PrimaryNeonGreen
+                    )
+                }
             }
 
             // ---- Body Section ----
@@ -122,7 +131,7 @@ fun ComputersScreen(
                             border = BorderStroke(1.dp, StatusWarning.copy(alpha = 0.5f))
                         ) {
                             Text(
-                                text = "Límite de la versión básica: solo puedes registrar una sola PC. Elimina la PC registrada para vincular o agregar otra.".tr(),
+                                text = "Límite de la versión básica: solo puedes registrar hasta dos PCs. Elimina una PC registrada para vincular o agregar otra.".tr(),
                                 color = StatusWarning,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
@@ -386,7 +395,7 @@ fun ComputersScreen(
             ) {
                 if (limitReached) {
                     Text(
-                        text = "LÍMITE: 1 PC (VERSIÓN BÁSICA)".tr(),
+                        text = "LÍMITE: 2 PCs (VERSIÓN BÁSICA)".tr(),
                         color = OnSurfaceTextVariant.copy(alpha = 0.6f),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -412,6 +421,9 @@ fun ComputersScreen(
 
         // Dialog overlays
         if (showAddDialog) {
+            LaunchedEffect(Unit) {
+                viewModel.refreshDiscovery()
+            }
             ComputerFormDialog(
                 title = "Agregar Computador".tr(),
                 onDismiss = { showAddDialog = false },
@@ -457,8 +469,27 @@ fun ComputerFormDialog(
     var username by remember { mutableStateOf(initialComputer?.username ?: "admin") }
     var password by remember { mutableStateOf(initialComputer?.password ?: "admin") }
     var apiKey by remember { mutableStateOf(initialComputer?.apiKey ?: "") }
+    var isScanning by remember { mutableStateOf(false) }
 
     var showError by remember { mutableStateOf(false) }
+
+    // Auto-fill cuando se detecta el primer equipo en red
+    LaunchedEffect(state.discoveredComputers) {
+        val discovered = state.discoveredComputers
+        if (isScanning && discovered.isNotEmpty() && ip.isBlank()) {
+            val first = discovered.first()
+            name = first.name
+            ip = first.ip
+            port = first.port
+            isScanning = false
+        } else if (discovered.isNotEmpty() && ip.isBlank()) {
+            // También auto-rellena si no estamos en modo escaneo activo
+            val first = discovered.first()
+            name = first.name
+            ip = first.ip
+            port = first.port
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -622,35 +653,114 @@ fun ComputerFormDialog(
                     textStyle = TextStyle(fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                 )
 
-                // Username (Basic Auth)
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it; showError = false },
-                    label = { Text("Usuario (Agente)".tr(), color = OnSurfaceTextVariant) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SecondaryBlue,
-                        unfocusedBorderColor = BorderSlate,
-                        focusedTextColor = OnSurfaceText,
-                        unfocusedTextColor = OnSurfaceText
-                    ),
+                // Quick Connection Buttons
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // WiFi Button
+                    Button(
+                        onClick = {
+                            isScanning = true
+                            viewModel.refreshDiscovery()
+                            if (state.discoveredComputers.isNotEmpty()) {
+                                val selected = state.discoveredComputers.first()
+                                name = selected.name
+                                ip = selected.ip
+                                port = selected.port
+                                isScanning = false
+                            } else {
+                                viewModel.showFeedback("\uD83D\uDD0D Buscando equipos en la red WiFi...")
+                            }
+                            showError = false
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isScanning) PrimaryNeonGreen.copy(alpha = 0.2f)
+                            else PrimaryNeonGreen.copy(alpha = 0.1f)
+                        ),
+                        border = BorderStroke(1.dp, PrimaryNeonGreen),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        if (isScanning) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = PrimaryNeonGreen,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = PrimaryNeonGreen)
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            if (isScanning) "Buscando...".tr() else "WiFi (Auto)".tr(),
+                            color = PrimaryNeonGreen,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
-                // Password / API Key
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it; showError = false },
-                    label = { Text("Contraseña / API Key".tr(), color = OnSurfaceTextVariant) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SecondaryBlue,
-                        unfocusedBorderColor = BorderSlate,
-                        focusedTextColor = OnSurfaceText,
-                        unfocusedTextColor = OnSurfaceText
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+                    // ADB Button
+                    Button(
+                        onClick = {
+                            name = "PC por USB (ADB)"
+                            ip = "127.0.0.1"
+                            port = "8765"
+                            showError = false
+                            viewModel.pairUsbAutomatic { key ->
+                                if (key != null) apiKey = key
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = SecondaryBlue.copy(alpha = 0.1f)),
+                        border = BorderStroke(1.dp, SecondaryBlue),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.Monitor, contentDescription = null, modifier = Modifier.size(16.dp), tint = SecondaryBlue)
+                        Spacer(Modifier.width(4.dp))
+                        Text("USB (ADB)".tr(), color = SecondaryBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Discovered Computers List in Dialog
+                if (state.discoveredComputers.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(SurfaceContainerLowest, shape = RoundedCornerShape(8.dp))
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Equipos encontrados:".tr(),
+                            color = OnSurfaceTextVariant,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        state.discoveredComputers.forEach { discovered ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        name = discovered.name
+                                        ip = discovered.ip
+                                        port = discovered.port
+                                        showError = false
+                                    }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = discovered.name, color = PrimaryNeonGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(text = discovered.ip, color = OnSurfaceTextVariant, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+
+
 
                 if (showError) {
                     Text(

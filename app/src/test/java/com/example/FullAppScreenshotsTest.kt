@@ -27,6 +27,7 @@ class FullAppScreenshotsTest {
     private val application = ApplicationProvider.getApplicationContext<Application>()
     private val viewModel = MonitorViewModel(application)
 
+/*
     @Test
     fun capture_login_screen() {
         composeTestRule.setContent {
@@ -36,6 +37,7 @@ class FullAppScreenshotsTest {
         }
         composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/login.png")
     }
+*/
 
     @Test
     fun capture_dashboard_screen() {

@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -108,6 +110,11 @@ fun StorageScreen(
             }
         }
 
+        val configuration = LocalConfiguration.current
+        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val isWideScreen = configuration.screenWidthDp >= 600
+        val useTwoColumns = isLandscape || isWideScreen
+
         // ---- Storage Screen Main Content ----
         Column(
             modifier = Modifier
@@ -132,310 +139,52 @@ fun StorageScreen(
                 )
             }
 
-            // Cards for Drives
-            state.drives.forEach { drive ->
-                DriveStateCard(drive = drive, tempUnit = state.tempUnit)
-            }
-
-            // ---- SMART Metrics Detailed Block ----
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Analytics,
-                    contentDescription = "smart analytics",
-                    tint = PrimaryNeonGreen,
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    text = "Métricas SMART Detalladas".tr(),
-                    color = OnSurfaceText,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            // Styled Table View for SMART metrics
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BorderSlate)
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    // Header Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(SurfaceContainerLow, shape = RoundedCornerShape(4.dp))
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "ATRIBUTO".tr(),
-                            color = OnSurfaceTextVariant,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(2.2f)
-                        )
-                        Text(
-                            text = "ACT".tr(),
-                            color = OnSurfaceTextVariant,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(0.8f),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "PEOR".tr(),
-                            color = OnSurfaceTextVariant,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(0.8f),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "ESTADO".tr(),
-                            color = OnSurfaceTextVariant,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1.2f),
-                            textAlign = TextAlign.End
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(BorderSlate)
-                    )
-
-                    // Table rows
-                    state.smartMetrics.forEachIndexed { index, metric ->
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = metric.attribute,
-                                    color = OnSurfaceText,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(2.2f)
-                                )
-                                Text(
-                                    text = metric.value.toString(),
-                                    color = OnSurfaceText,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(0.8f),
-                                    textAlign = TextAlign.Center,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                                Text(
-                                    text = metric.worst.toString(),
-                                    color = OnSurfaceText,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(0.8f),
-                                    textAlign = TextAlign.Center,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                                Text(
-                                    text = metric.status.tr(),
-                                    color = if (metric.status == "OK") StatusHealthy else StatusWarning,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1.2f),
-                                    textAlign = TextAlign.End
-                                )
-                            }
-                            if (index < state.smartMetrics.size - 1) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(0.5.dp)
-                                        .background(BorderSlate.copy(alpha = 0.5f))
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---- Global capacity visualizers ----
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BorderSlate)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+            if (useTwoColumns) {
+                // Top section: Global Capacity on the left (without circular gauge), SMART metrics on the right (matching height)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    DiskMainCircularGauge(
-                        loadPercentage = state.globalStorageUsedPct,
-                        rawLabel = "OCUPADO".tr(),
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "Resumen de Capacidad Global".tr(),
-                            color = OnSurfaceText,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Start,
-                            modifier = Modifier.fillMaxWidth()
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        GlobalCapacityVisualizerCard(
+                            state = state,
+                            showGauge = false,
+                            modifier = Modifier.fillMaxHeight()
                         )
+                    }
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        SmartMetricsTableCard(
+                            state = state,
+                            fillHeight = true,
+                            modifier = Modifier.fillMaxHeight()
+                        )
+                    }
+                }
 
-                        // 3 Grid columns summary
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Total Box
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "TOTAL".tr(),
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "${state.globalStorageTotalTb} TB",
-                                    color = OnSurfaceText,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                            }
-
-                            // Used Box
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "USADO".tr(),
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "${state.globalStorageUsedTb} TB",
-                                    color = PrimaryNeonGreen,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                            }
-
-                            // Free Box
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "LIBRE".tr(),
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "${state.globalStorageFreeTb} TB",
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
+                // Bottom section: Individual drives arranged side-by-side in symmetric columns
+                state.drives.chunked(2).forEach { driveRow ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        driveRow.forEach { drive ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                DriveStateCard(drive = drive, tempUnit = state.tempUnit)
                             }
                         }
-
-                        // Real-Time Disk Read / Write Speed stats
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "LECTURA".tr(),
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = state.diskReadSpeedFormatted,
-                                    color = PrimaryNeonGreen,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                            }
-
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "ESCRITURA".tr(),
-                                    color = OnSurfaceTextVariant,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = state.diskWriteSpeedFormatted,
-                                    color = DataBlue,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
-                                )
-                            }
+                        if (driveRow.size < 2) {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
+            } else {
+                state.drives.forEach { drive ->
+                    DriveStateCard(drive = drive, tempUnit = state.tempUnit)
+                }
+                SmartMetricsTableCard(state, fillHeight = false)
+                GlobalCapacityVisualizerCard(state, showGauge = true, modifier = Modifier.padding(top = 12.dp))
             }
         }
     }
@@ -668,6 +417,317 @@ fun DriveStateCard(
                         color = barColor,
                         trackColor = SurfaceContainerHighest
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SmartMetricsTableCard(
+    state: com.example.viewmodel.MonitorUiState,
+    fillHeight: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Analytics,
+                contentDescription = "smart analytics",
+                tint = PrimaryNeonGreen,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "Métricas SMART Detalladas".tr(),
+                color = OnSurfaceText,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        Card(
+            modifier = if (fillHeight) Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, BorderSlate)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SurfaceContainerLow, shape = RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "ATRIBUTO".tr(),
+                        color = OnSurfaceTextVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(2.2f)
+                    )
+                    Text(
+                        text = "ACT".tr(),
+                        color = OnSurfaceTextVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(0.8f),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "PEOR".tr(),
+                        color = OnSurfaceTextVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(0.8f),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "ESTADO".tr(),
+                        color = OnSurfaceTextVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1.2f),
+                        textAlign = TextAlign.End
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(BorderSlate)
+                )
+
+                state.smartMetrics.forEachIndexed { index, metric ->
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = metric.attribute,
+                                color = OnSurfaceText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(2.2f)
+                            )
+                            Text(
+                                text = metric.value.toString(),
+                                color = OnSurfaceText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(0.8f),
+                                textAlign = TextAlign.Center,
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                            )
+                            Text(
+                                text = metric.worst.toString(),
+                                color = OnSurfaceText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(0.8f),
+                                textAlign = TextAlign.Center,
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                            )
+                            Text(
+                                text = metric.status.tr(),
+                                color = if (metric.status == "OK") StatusHealthy else StatusWarning,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1.2f),
+                                textAlign = TextAlign.End
+                            )
+                        }
+                        if (index < state.smartMetrics.size - 1) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(0.5.dp)
+                                    .background(BorderSlate.copy(alpha = 0.5f))
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GlobalCapacityVisualizerCard(
+    state: com.example.viewmodel.MonitorUiState,
+    showGauge: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCharcoal),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, BorderSlate)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (showGauge) {
+                DiskMainCircularGauge(
+                    loadPercentage = state.globalStorageUsedPct,
+                    rawLabel = "OCUPADO".tr(),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Resumen de Capacidad Global".tr(),
+                    color = OnSurfaceText,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "TOTAL".tr(),
+                            color = OnSurfaceTextVariant,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "${state.globalStorageTotalTb} TB",
+                            color = OnSurfaceText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "USADO".tr(),
+                            color = OnSurfaceTextVariant,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "${state.globalStorageUsedTb} TB",
+                            color = PrimaryNeonGreen,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "LIBRE".tr(),
+                            color = OnSurfaceTextVariant,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "${state.globalStorageFreeTb} TB",
+                            color = OnSurfaceTextVariant,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "LECTURA".tr(),
+                            color = OnSurfaceTextVariant,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = state.diskReadSpeedFormatted,
+                            color = PrimaryNeonGreen,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(SurfaceContainerLow, shape = RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, shape = RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "ESCRITURA".tr(),
+                            color = OnSurfaceTextVariant,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = state.diskWriteSpeedFormatted,
+                            color = DataBlue,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                        )
+                    }
                 }
             }
         }
