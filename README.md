@@ -36,6 +36,7 @@ Esta aplicación ha sido diseñada para ser ligera, rápida y proporcionar una v
 
 ### Novedades en v1.0.2:
 *   **Corrección de Errores Críticos**: Solucionado error de referencia en `SettingsScreen` que impedía la compilación.
+*   **Monitoreo de CPU**: Se corrigió el problema del valor fijo en 40°C. Ahora muestra temperatura real (vía sensores) o estimada (vía carga) en tiempo real.
 *   **Mejoras de UI**: Ajustes en la disposición de tarjetas y manejo de estados expandibles en pantallas anchas.
 *   **Estabilidad**: Optimización en el cierre de scopes de Compose y manejo de recursos.
 *   **Localización**: Mejoras en las traducciones y consistencia de textos.
@@ -87,3 +88,15 @@ El agente es un servidor local seguro escrito en Python que recopila la telemetr
 2.  Abre la aplicación de Android.
 3.  Introduce la dirección IP local de tu computadora y el puerto (por defecto `8765`).
 4.  ¡Listo! Métricas en tiempo real en tu mano.
+
+---
+
+## 🆕 Novedades de la Versión 1.0.2
+
+*   **⚡ Barra de Navegación Compacta:** Altura reducida de 84.dp a 56.dp con botones agrupados para un acceso ergonómico.
+*   **🌐 Localización Completa:** Traducción dinámica de toda la interfaz al idioma del sistema Android (soporte Español/Inglés).
+*   **📊 Dashboard Adaptativo:** En modo horizontal, oculta información no crítica (Windows/Motor) y distribuye simétricamente las tarjetas de CPU, GPU y RAM en 3 columnas alineadas horizontalmente.
+*   **💾 RAM con Telemetría Real:** Mapea el fabricante/modelo, tipo (DDR3/DDR4/DDR5/LPDDR5), velocidad de reloj y módulos físicos usando consultas WMI/PowerShell integradas en el agente.
+*   **📁 Almacenamiento Simétrico:** Oculta el reloj polar en horizontal y alinea verticalmente el resumen general con la tabla de diagnóstico SMART.
+*   **⚙️ Ajustes Master-Detail:** Interfaz de panel dividido en horizontal (menú izquierdo, detalles derecho) y remoción de secciones redundantes de credenciales básicas.
+*   **🖥️ Vinculación Simplificada:** Diálogo de agregar PC ultra limpio sin campos de usuario y contraseña, enfocado en el PIN de 6 dígitos.

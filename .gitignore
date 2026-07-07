@@ -17,3 +17,4 @@ local.properties
 .env
 debug.keystore
 app/src/main/java/com/example/ui/screens/oracleJdk-26/
+jdk/
