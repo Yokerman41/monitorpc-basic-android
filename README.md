@@ -43,7 +43,7 @@ Esta aplicación ha sido diseñada para ser ligera, rápida y proporcionar una v
 
 Para probar la aplicación rápidamente:
 1. Ve a la sección de **[Releases](https://github.com/Yokerman41/monitorpc-basic-android/releases/tag/v1.0.2)**.
-2. Descarga el archivo `monitorPC-Basic-v1.0.2.apk` e instálalo en tu Android.
+2. Descarga el archivo **[monitorPC-Basic-v1.0.2.apk](https://github.com/Yokerman41/monitorpc-basic-android/raw/main/releases/v1.0.2/monitorPC-Basic-v1.0.2.apk)** e instálalo en tu Android.
 3. Asegúrate de tener el **[monitorpc-agent v1.0.2](https://github.com/Yokerman41/monitorpc-agent/releases/tag/v1.0.2)** corriendo en tu PC.
 
 ---
