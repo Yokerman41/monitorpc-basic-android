@@ -11,10 +11,18 @@ Esta aplicación ha sido diseñada para ser ligera, rápida y proporcionar una v
 ## 📸 Screenshots
 
 <div align="center">
-  <img src="screenshots/login.png" width="24%" alt="Login Screen" />
-  <img src="screenshots/dashboard.png" width="24%" alt="Dashboard Screen" />
-  <img src="screenshots/storage.png" width="24%" alt="Storage Screen" />
-  <img src="screenshots/settings.png" width="24%" alt="Settings Screen" />
+  <img src="screenshots/1.png" width="24%" alt="Login Screen" />
+  <img src="screenshots/2.png" width="24%" alt="Dashboard Screen" />
+  <img src="screenshots/3.png" width="24%" alt="Storage Screen" />
+  <img src="screenshots/4.png" width="24%" alt="Settings Screen" />
+  <img src="screenshots/5.png" width="24%" alt="Settings Screen" />
+  <img src="screenshots/6.png" width="24%" alt="Settings Screen" />
+  <img src="screenshots/7.png" width="24%" alt="Settings Screen" />
+  <img src="screenshots/8.png" width="24%" alt="Settings Screen" />
+  <img src="screenshots/9.png" width="24%" alt="Settings Screen" />
+  <img src="screenshots/10.png" width="24%" alt="Settings Screen" />
+  <img src="screenshots/11.png" width="24%" alt="Settings Screen" />
+
 </div>
 
 ---
@@ -63,22 +71,6 @@ El agente es un servidor local seguro escrito en Python que recopila la telemetr
 
 > [!NOTE]
 > Este proyecto, su arquitectura, optimización de hilos y depuración de la conexión mediante WebSockets y REST han sido desarrollados en colaboración directa con **Antigravity**, un agente avanzado de inteligencia artificial diseñado por el equipo de **Google DeepMind**.
-
----
-
-## 🛠️ Instalación para Desarrolladores
-
-### Configuración del Proyecto:
-
-1.  **Clonar e Importar**:
-    Abre Android Studio, selecciona **Open** y elige la carpeta de este proyecto.
-2.  **Configurar Variables de Env**:
-    Crea un archivo llamado `.env` en el directorio raíz y define:
-    ```env
-    GEMINI_API_KEY=tu_clave_de_gemini_aqui
-    ```
-3.  **Ejecutar**:
-    Conecta tu dispositivo y haz clic en **Run**.
 
 ---
 
